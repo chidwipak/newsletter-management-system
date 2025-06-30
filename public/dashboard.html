@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Newsletter Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body class="bg-gray-50">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <h1 class="text-2xl font-bold text-blue-600">NewsletterHub</h1>
+                    </div>
+                    <div class="hidden md:block ml-10">
+                        <div class="flex items-baseline space-x-4" id="navigation-menu">
+                            <!-- Navigation items will be populated based on user role -->
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="user-info" class="text-gray-700 text-sm"></span>
+                    <button id="logout-btn" class="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="mt-2 text-gray-600">Loading dashboard...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="hidden text-center py-12">
+            <div class="text-red-600 mb-4">
+                <i data-lucide="alert-circle" class="h-12 w-12 mx-auto mb-4"></i>
+                <h3 class="text-lg font-medium">Failed to Load Dashboard</h3>
+                <p class="mt-2 text-sm text-gray-600" id="error-message"></p>
+            </div>
+            <button onclick="retryLoad()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                Try Again
+            </button>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboard-content" class="hidden">
+            <!-- Role-specific content will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Modals and Forms Container -->
+    <div id="modals-container"></div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        let currentUser = null;
+
+        // Check authentication and load dashboard
+        async function initializeDashboard() {
+            try {
+                console.log('Initializing dashboard...');
+                
+                // Check authentication first
+                const authResponse = await fetch('/auth/me');
+                console.log('Auth response status:', authResponse.status);
+                
+                if (!authResponse.ok) {
+                    console.log('Not authenticated, redirecting to login');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const authData = await authResponse.json();
+                console.log('Auth data:', authData);
+                
+                if (!authData.success || !authData.user) {
+                    console.log('Invalid auth data, redirecting to login');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                currentUser = authData.user;
+                console.log('Current user:', currentUser);
+
+                // Update user info in navigation
+                document.getElementById('user-info').textContent = 
+                    `${currentUser.full_name} (${currentUser.role})`;
+
+                // Setup navigation based on role
+                setupNavigation();
+
+                // Load role-specific dashboard
+                await loadDashboard();
+
+                // Hide loading, show content
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('dashboard-content').classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Dashboard initialization error:', error);
+                showError('Failed to initialize dashboard: ' + error.message);
+            }
+        }
+
+        // Show error state
+        function showError(message) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.add('hidden');
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-state').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // Retry loading
+        function retryLoad() {
+            document.getElementById('error-state').classList.add('hidden');
+            document.getElementById('loading').classList.remove('hidden');
+            setTimeout(initializeDashboard, 1000);
+        }
+
+        // Setup navigation menu based on user role
+        function setupNavigation() {
+            const navMenu = document.getElementById('navigation-menu');
+            let navItems = [];
+
+            switch (currentUser.role) {
+                case 'admin':
+                    navItems = [
+                        { name: 'Dashboard', id: 'dashboard', active: true },
+                        { name: 'Users', id: 'users' },
+                        { name: 'Articles', id: 'articles' },
+                        { name: 'Issues', id: 'issues' },
+                        { name: 'Feedback', id: 'feedback' },
+                        { name: 'Reports', id: 'reports' }
+                    ];
+                    break;
+                case 'editor':
+                    navItems = [
+                        { name: 'Dashboard', id: 'dashboard', active: true },
+                        { name: 'My Articles', id: 'my-articles' },
+                        { name: 'All Articles', id: 'articles' },
+                        { name: 'Issues', id: 'issues' }
+                    ];
+                    break;
+                case 'subscriber':
+                    navItems = [
+                        { name: 'Dashboard', id: 'dashboard', active: true },
+                        { name: 'Articles', id: 'articles' },
+                        { name: 'Issues', id: 'issues' },
+                        { name: 'Profile', id: 'profile' }
+                    ];
+                    break;
+            }
+
+            navMenu.innerHTML = navItems.map(item => `
+                <a href="#" data-section="${item.id}" 
+                   class="nav-item ${item.active ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-700 hover:text-blue-600'} px-3 py-2 text-sm font-medium">
+                    ${item.name}
+                </a>
+            `).join('');
+
+            // Add click handlers for navigation
+            navMenu.addEventListener('click', (e) => {
+                if (e.target.classList.contains('nav-item')) {
+                    e.preventDefault();
+                    const section = e.target.dataset.section;
+                    switchSection(section);
+                }
+            });
+        }
+
+        // Switch between dashboard sections
+        async function switchSection(section) {
+            try {
+                // Update active navigation
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                    item.classList.add('text-gray-700', 'hover:text-blue-600');
+                });
+                
+                const activeItem = document.querySelector(`[data-section="${section}"]`);
+                if (activeItem) {
+                    activeItem.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+                    activeItem.classList.remove('text-gray-700', 'hover:text-blue-600');
+                }
+
+                // Show loading
+                const dashboardContent = document.getElementById('dashboard-content');
+                dashboardContent.innerHTML = '<div class="text-center py-8"><div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div><p class="mt-2 text-gray-600">Loading...</p></div>';
+
+                // Load section content
+                switch (section) {
+                    case 'dashboard':
+                        await loadDashboard();
+                        break;
+                    case 'users':
+                        await loadUsersSection();
+                        break;
+                    case 'articles':
+                        await loadArticlesSection();
+                        break;
+                    case 'my-articles':
+                        await loadMyArticlesSection();
+                        break;
+                    case 'issues':
+                        await loadIssuesSection();
+                        break;
+                    case 'feedback':
+                        await loadFeedbackSection();
+                        break;
+                    case 'reports':
+                        await loadReportsSection();
+                        break;
+                    case 'profile':
+                        await loadProfileSection();
+                        break;
+                    default:
+                        throw new Error('Unknown section: ' + section);
+                }
+            } catch (error) {
+                console.error('Error loading section:', error);
+                document.getElementById('dashboard-content').innerHTML = 
+                    `<div class="text-center py-8 text-red-600">
+                        <i data-lucide="alert-circle" class="h-8 w-8 mx-auto mb-2"></i>
+                        <p>Error loading ${section}: ${error.message}</p>
+                        <button onclick="switchSection('${section}')" class="mt-2 text-blue-600 hover:text-blue-800">Try Again</button>
+                    </div>`;
+                lucide.createIcons();
+            }
+        }
+
+        // Load main dashboard based on user role
+        async function loadDashboard() {
+            console.log('Loading dashboard for role:', currentUser.role);
+            
+            switch (currentUser.role) {
+                case 'admin':
+                    await loadAdminDashboard();
+                    break;
+                case 'editor':
+                    await loadEditorDashboard();
+                    break;
+                case 'subscriber':
+                    await loadSubscriberDashboard();
+                    break;
+                default:
+                    throw new Error('Unknown user role: ' + currentUser.role);
+            }
+        }
+
+        // Admin Dashboard
+        async function loadAdminDashboard() {
+            try {
+                console.log('Loading admin dashboard...');
+                const response = await fetch('/admin/dashboard');
+                console.log('Admin dashboard response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Admin dashboard data:', data);
+
+                document.getElementById('dashboard-content').innerHTML = `
+                    <div class="mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+                        <p class="mt-2 text-gray-600">System overview and management</p>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i data-lucide="users" class="h-6 w-6 text-blue-600"></i>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Total Users</dt>
+                                            <dd class="text-lg font-medium text-gray-900">${data.userStats?.total || 0}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i data-lucide="file-text" class="h-6 w-6 text-green-600"></i>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Published Articles</dt>
+                                            <dd class="text-lg font-medium text-gray-900">${data.articleStats?.published || 0}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i data-lucide="book-open" class="h-6 w-6 text-purple-600"></i>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Published Issues</dt>
+                                            <dd class="text-lg font-medium text-gray-900">${data.issueStats?.published || 0}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i data-lucide="star" class="h-6 w-6 text-yellow-600"></i>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Avg Rating</dt>
+                                            <dd class="text-lg font-medium text-gray-900">${data.feedbackStats?.average_rating ? parseFloat(data.feedbackStats.average_rating).toFixed(1) : 'N/A'}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white shadow rounded-lg">
+                            <div class="px-6 py-4 border-b border-gray-200">
+                                <h3 class="text-lg font-medium text-gray-900">Recent Users</h3>
+                            </div>
+                            <div class="px-6 py-4">
+                                <div class="space-y-3">
+                                    ${(data.recentUsers || []).slice(0, 5).map(user => `
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-900">${user.full_name || 'Unknown'}</p>
+                                                <p class="text-sm text-gray-500">${user.email || 'No email'}</p>
+                                            </div>
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                user.role === 'admin' ? 'bg-red-100 text-red-800' :
+                                                user.role === 'editor' ? 'bg-blue-100 text-blue-800' :
+                                                'bg-green-100 text-green-800'
+                                            }">
+                                                ${user.role || 'subscriber'}
+                                            </span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white shadow rounded-lg">
+                            <div class="px-6 py-4 border-b border-gray-200">
+                                <h3 class="text-lg font-medium text-gray-900">Recent Articles</h3>
+                            </div>
+                            <div class="px-6 py-4">
+                                <div class="space-y-3">
+                                    ${(data.recentArticles || []).slice(0, 5).map(article => `
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-900">${article.title || 'Untitled'}</p>
+                                                <p class="text-sm text-gray-500">By ${article.author_name || 'Unknown'}</p>
+                                            </div>
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                article.status === 'published' ? 'bg-green-100 text-green-800' :
+                                                article.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-gray-100 text-gray-800'
+                                            }">
+                                                ${article.status || 'draft'}
+                                            </span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Error loading admin dashboard:', error);
+                throw error;
+            }
+        }
+
+        // Editor Dashboard
+        async function loadEditorDashboard() {
+            try {
+                console.log('Loading editor dashboard...');
+                const response = await fetch('/editor/dashboard');
+                console.log('Editor dashboard response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Editor dashboard data:', data);
+
+                document.getElementById('dashboard-content').innerHTML = `
+                    <div class="mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">Editor Dashboard</h1>
+                        <p class="mt-2 text-gray-600">Manage your articles and content</p>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="mb-8">
+                        <div class="flex space-x-4">
+                            <button onclick="showCreateArticleModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                <i data-lucide="plus" class="h-4 w-4 inline mr-2"></i>
+                                New Article
+                            </button>
+                            <button onclick="showCreateIssueModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                <i data-lucide="book-open" class="h-4 w-4 inline mr-2"></i>
+                                New Issue
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i data-lucide="file-text" class="h-6 w-6 text-blue-600"></i>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">My Articles</dt>
+                                            <dd class="text-lg font-medium text-gray-900">${data.stats?.totalArticles || 0}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i data-lucide="check-circle" class="h-6 w-6 text-green-600"></i>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Published</dt>
+                                            <dd class="text-lg font-medium text-gray-900">${data.stats?.publishedArticles || 0}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white overflow-hidden shadow rounded-lg">
+                            <div class="p-5">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <i data-lucide="edit" class="h-6 w-6 text-yellow-600"></i>
+                                    </div>
+                                    <div class="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt class="text-sm font-medium text-gray-500 truncate">Drafts</dt>
+                                            <dd class="text-lg font-medium text-gray-900">${data.stats?.draftArticles || 0}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- My Recent Articles -->
+                    <div class="bg-white shadow rounded-lg">
+                        <div class="px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-medium text-gray-900">My Recent Articles</h3>
+                        </div>
+                        <div class="px-6 py-4">
+                            ${(data.myArticles || []).length > 0 ? `
+                                <div class="space-y-4">
+                                    ${data.myArticles.slice(0, 5).map(article => `
+                                        <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                            <div class="flex-1">
+                                                <h4 class="text-sm font-medium text-gray-900">${article.title || 'Untitled'}</h4>
+                                                <p class="text-sm text-gray-500 mt-1">${article.issue_title || 'No issue assigned'}</p>
+                                                <p class="text-xs text-gray-400 mt-1">${article.created_at ? new Date(article.created_at).toLocaleDateString() : 'Unknown date'}</p>
+                                            </div>
+                                            <div class="flex items-center space-x-2">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                                    article.status === 'published' ? 'bg-green-100 text-green-800' :
+                                                    article.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                                }">
+                                                    ${article.status || 'draft'}
+                                                </span>
+                                                <button onclick="editArticle(${article.id})" class="text-blue-600 hover:text-blue-800 text-sm">
+                                                    Edit
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : `
+                                <p class="text-gray-500 text-center py-8">No articles yet. Create your first article!</p>
+                            `}
+                        </div>
+                    </div>
+                `;
+
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Error loading editor dashboard:', error);
+                throw error;
+            }
+        }
+
+        // Subscriber Dashboard
+        async function loadSubscriberDashboard() {
+            try {
+                console.log('Loading subscriber dashboard...');
+                const response = await fetch('/subscriber/dashboard');
+                console.log('Subscriber dashboard response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Subscriber dashboard data:', data);
+
+                document.getElementById('dashboard-content').innerHTML = `
+                    <div class="mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">Welcome back, ${currentUser.full_name}!</h1>
+                        <p class="mt-2 text-gray-600">Discover the latest articles and magazine issues</p>
+                    </div>
+
+                    <!-- Subscription Status -->
+                    <div class="mb-8">
+                        <div class="bg-white shadow rounded-lg p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-lg font-medium text-gray-900">Subscription Status</h3>
+                                    <p class="text-sm text-gray-500 mt-1">
+                                        Status: <span class="font-medium ${data.userInfo?.subscription_status === 'active' ? 'text-green-600' : 'text-red-600'}">${data.userInfo?.subscription_status || 'unknown'}</span>
+                                    </p>
+                                </div>
+                                ${data.userInfo?.subscription_status !== 'active' ? `
+                                    <button onclick="renewSubscription()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                        Renew Subscription
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Articles -->
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Latest Articles</h2>
+                        <div class="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
+                            ${(data.recentArticles || []).map(article => `
+                                <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                                    <img src="${article.featured_image_url || 'https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=400&h=200'}" 
+                                         alt="${article.title || 'Article'}" class="w-full h-48 object-cover">
+                                    <div class="p-6">
+                                        <h3 class="text-lg font-semibold text-gray-900 mb-2">${article.title || 'Untitled'}</h3>
+                                        <p class="text-gray-600 text-sm mb-3">${article.summary || 'No summary available'}</p>
+                                        <div class="flex items-center justify-between text-sm text-gray-500 mb-4">
+                                            <span>By ${article.author_name || 'Unknown'}</span>
+                                            ${article.average_rating ? `
+                                                <span class="flex items-center">
+                                                    <i data-lucide="star" class="h-4 w-4 text-yellow-400 mr-1"></i>
+                                                    ${parseFloat(article.average_rating).toFixed(1)}
+                                                </span>
+                                            ` : ''}
+                                        </div>
+                                        <button onclick="viewArticle(${article.id})" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                            Read Article
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Recent Issues -->
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Latest Issues</h2>
+                        <div class="grid gap-6 lg:grid-cols-3">
+                            ${(data.recentIssues || []).map(issue => `
+                                <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                                    <img src="${issue.cover_image_url || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=400&h=300'}" 
+                                         alt="${issue.title || 'Issue'}" class="w-full h-64 object-cover">
+                                    <div class="p-6">
+                                        <div class="flex items-center justify-between mb-2">
+                                            <span class="text-sm font-medium text-blue-600">Issue #${issue.issue_number || 'N/A'}</span>
+                                            <span class="text-sm text-gray-500">${issue.publication_date ? new Date(issue.publication_date).toLocaleDateString() : 'No date'}</span>
+                                        </div>
+                                        <h3 class="text-xl font-semibold text-gray-900 mb-2">${issue.title || 'Untitled'}</h3>
+                                        <p class="text-gray-600 mb-4">${issue.description || 'No description available'}</p>
+                                        <button onclick="viewIssue(${issue.id})" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                            Read Issue
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Top Rated Articles -->
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900 mb-6">Top Rated Articles</h2>
+                        <div class="space-y-4">
+                            ${(data.topRatedArticles || []).map((article, index) => `
+                                <div class="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0">
+                                            <span class="inline-flex items-center justify-center h-8 w-8 rounded-full bg-blue-100 text-blue-600 font-semibold">
+                                                ${index + 1}
+                                            </span>
+                                        </div>
+                                        <div class="ml-4 flex-1">
+                                            <h4 class="text-lg font-medium text-gray-900">${article.title || 'Untitled'}</h4>
+                                            <div class="flex items-center mt-1">
+                                                <div class="flex items-center">
+                                                    <i data-lucide="star" class="h-4 w-4 text-yellow-400 mr-1"></i>
+                                                    <span class="text-sm text-gray-600">${article.average_rating ? parseFloat(article.average_rating).toFixed(1) : 'N/A'} (${article.feedback_count || 0} reviews)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="ml-4">
+                                            <button onclick="viewArticle(${article.id})" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                                Read →
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Error loading subscriber dashboard:', error);
+                throw error;
+            }
+        }
+
+        // Placeholder functions for missing functionality
+        function loadUsersSection() {
+            document.getElementById('dashboard-content').innerHTML = '<div class="text-center py-8"><p class="text-gray-600">Users section - Coming soon</p></div>';
+        }
+
+        function loadArticlesSection() {
+            document.getElementById('dashboard-content').innerHTML = '<div class="text-center py-8"><p class="text-gray-600">Articles section - Coming soon</p></div>';
+        }
+
+        function loadMyArticlesSection() {
+            document.getElementById('dashboard-content').innerHTML = '<div class="text-center py-8"><p class="text-gray-600">My Articles section - Coming soon</p></div>';
+        }
+
+        function loadIssuesSection() {
+            document.getElementById('dashboard-content').innerHTML = '<div class="text-center py-8"><p class="text-gray-600">Issues section - Coming soon</p></div>';
+        }
+
+        function loadFeedbackSection() {
+            document.getElementById('dashboard-content').innerHTML = '<div class="text-center py-8"><p class="text-gray-600">Feedback section - Coming soon</p></div>';
+        }
+
+        function loadReportsSection() {
+            document.getElementById('dashboard-content').innerHTML = '<div class="text-center py-8"><p class="text-gray-600">Reports section - Coming soon</p></div>';
+        }
+
+        function loadProfileSection() {
+            document.getElementById('dashboard-content').innerHTML = '<div class="text-center py-8"><p class="text-gray-600">Profile section - Coming soon</p></div>';
+        }
+
+        // Placeholder functions for actions
+        function showCreateArticleModal() {
+            alert('Create Article modal - Coming soon');
+        }
+
+        function showCreateIssueModal() {
+            alert('Create Issue modal - Coming soon');
+        }
+
+        function editArticle(id) {
+            alert('Edit Article ' + id + ' - Coming soon');
+        }
+
+        function viewArticle(id) {
+            alert('View Article ' + id + ' - Coming soon');
+        }
+
+        function viewIssue(id) {
+            alert('View Issue ' + id + ' - Coming soon');
+        }
+
+        function renewSubscription() {
+            alert('Renew Subscription - Coming soon');
+        }
+
+        // Logout functionality
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/auth/logout', { method: 'POST' });
+                if (response.ok) {
+                    window.location.href = '/';
+                } else {
+                    console.error('Logout failed');
+                    alert('Logout failed. Please try again.');
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Logout failed. Please try again.');
+            }
+        });
+
+        // Initialize dashboard when page loads
+        document.addEventListener('DOMContentLoaded', initializeDashboard);
+    </script>
+</body>
+</html>

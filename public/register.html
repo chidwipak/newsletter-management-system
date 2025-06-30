@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Newsletter Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8">
+            <div>
+                <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-blue-100">
+                    <i data-lucide="user-plus" class="h-6 w-6 text-blue-600"></i>
+                </div>
+                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    Create your account
+                </h2>
+                <p class="mt-2 text-center text-sm text-gray-600">
+                    Or
+                    <a href="/login" class="font-medium text-blue-600 hover:text-blue-500">
+                        sign in to existing account
+                    </a>
+                </p>
+            </div>
+
+            <!-- Registration Form -->
+            <form id="registerForm" class="mt-8 space-y-6">
+                <div class="space-y-4">
+                    <div>
+                        <label for="full_name" class="block text-sm font-medium text-gray-700">Full Name</label>
+                        <input id="full_name" name="full_name" type="text" required 
+                               class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                               placeholder="Enter your full name">
+                    </div>
+
+                    <div>
+                        <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                        <input id="username" name="username" type="text" required 
+                               class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                               placeholder="Choose a username">
+                    </div>
+
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700">Email Address</label>
+                        <input id="email" name="email" type="email" required 
+                               class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                               placeholder="Enter your email">
+                    </div>
+
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input id="password" name="password" type="password" required 
+                               class="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" 
+                               placeholder="Create a password (min 6 characters)">
+                    </div>
+
+                    <div>
+                        <label for="role" class="block text-sm font-medium text-gray-700">Account Type</label>
+                        <select id="role" name="role" 
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="subscriber">Subscriber (Read articles and provide feedback)</option>
+                            <option value="editor">Editor (Create and manage content)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <div id="errorMessage" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
+                    <span class="block sm:inline" id="errorText"></span>
+                </div>
+
+                <!-- Success Message -->
+                <div id="successMessage" class="hidden bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative">
+                    <span class="block sm:inline" id="successText"></span>
+                </div>
+
+                <div>
+                    <button type="submit" id="registerButton"
+                            class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                            <i data-lucide="user-plus" class="h-5 w-5 text-blue-500 group-hover:text-blue-400"></i>
+                        </span>
+                        <span id="registerButtonText">Create Account</span>
+                    </button>
+                </div>
+
+                <div class="text-center">
+                    <a href="/" class="text-sm text-blue-600 hover:text-blue-500">
+                        ← Back to home
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Handle registration form submission
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const userData = {
+                full_name: formData.get('full_name'),
+                username: formData.get('username'),
+                email: formData.get('email'),
+                password: formData.get('password'),
+                role: formData.get('role')
+            };
+
+            const registerButton = document.getElementById('registerButton');
+            const registerButtonText = document.getElementById('registerButtonText');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            const errorText = document.getElementById('errorText');
+            const successText = document.getElementById('successText');
+
+            // Show loading state
+            registerButton.disabled = true;
+            registerButtonText.textContent = 'Creating Account...';
+            errorMessage.classList.add('hidden');
+            successMessage.classList.add('hidden');
+
+            try {
+                const response = await fetch('/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(userData),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Registration successful
+                    successText.textContent = 'Account created successfully! Redirecting to login...';
+                    successMessage.classList.remove('hidden');
+                    
+                    // Redirect to login after 2 seconds
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 2000);
+                } else {
+                    // Show error message
+                    errorText.textContent = data.error || 'Registration failed';
+                    errorMessage.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                errorText.textContent = 'Network error. Please try again.';
+                errorMessage.classList.remove('hidden');
+            } finally {
+                // Reset button state
+                registerButton.disabled = false;
+                registerButtonText.textContent = 'Create Account';
+            }
+        });
+
+        // Password strength validation
+        document.getElementById('password').addEventListener('input', (e) => {
+            const password = e.target.value;
+            const isValid = password.length >= 6;
+            
+            if (password.length > 0 && !isValid) {
+                e.target.classList.add('border-red-300');
+                e.target.classList.remove('border-gray-300');
+            } else {
+                e.target.classList.remove('border-red-300');
+                e.target.classList.add('border-gray-300');
+            }
+        });
+    </script>
+</body>
+</html>

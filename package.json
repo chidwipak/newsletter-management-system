@@ -1,0 +1,27 @@
+{
+  "name": "newsletter-management-system",
+  "version": "1.0.0",
+  "description": "A complete newsletter and magazine management system with role-based access control",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "init-db": "node scripts/03-initialize-database.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["newsletter", "magazine", "cms", "nodejs", "express", "mysql"],
+  "author": "Newsletter Management System",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.6.5",
+    "bcrypt": "^5.1.1",
+    "express-session": "^1.17.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
